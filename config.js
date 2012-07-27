@@ -7,5 +7,8 @@ module.exports = {
 		notfound:	"/404.html",
 		index:		"/index.html",
 		flowerimg:	"/flowers.jpg"
-	}
+	},
+	
+	imageChunkSize: 1,
+	imageChunkInterval: 250
 };

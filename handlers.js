@@ -4,38 +4,62 @@ var path = require('path');
 var moment = require('moment');
 
 function serveTrackingImage(req, res) {
-	
 	var imagePath = config.webdir + config.file.flowerimg;
 	var referer = req.headers.referer;
 	
-	if (referer)
-		console.log("IMAGE VIEWED ON:", referer);
-	else
-		console.log("IMAGE VIEWED DIRECTLY");
+	console.log("OPENED:", referer ? referer : "DIRECT IMAGE");
+	
+	var connected = true;
+	res.on('close', function() {
+		connected = false;
+		console.log("CLOSED:", referer ? referer : "DIRECT IMAGE");
+	});
 	
 	path.exists(imagePath, function(exists) {
-		if (exists) {
-			fs.readFile(imagePath, function(error, content) {
-				if (error) {
-					res.writeHead(500);
+		if (!exists) {
+			serveFile(req, res, config.file.notfound, 404);
+			return;
+		}
+		
+		fs.open(imagePath, 'r', function(err, fd) {
+			if (err) {
+				console.error(err);
+				res.writeHead(500);
+				res.end();
+			}
+		
+			res.writeHead(200, {
+				'Content-Type': 'image/jpeg',
+				'Connection': 'Keep-Alive',
+				//'Expires': 'Tue, 03 Jul 2001 06:00:00 GMT',
+				'Expires': '-1',
+				'Last-Modified': moment().utc().format("ddd, DD MMM YYYY HH:mm:ss") + ' GMT',
+				'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0, false',
+				'Pragma': 'no-cache'
+			});
+			
+			var chunkSize = config.imageChunkSize;
+			var offset = 0;
+			
+			var sendChunk = function() {
+				if (!connected) return;
+				
+				var buffer = new Buffer(chunkSize);
+				var bytesRead = fs.readSync(fd, buffer, 0, chunkSize, offset);
+				
+				if (bytesRead <= 0) {
 					res.end();
 					return;
 				}
 				
-				res.writeHead(200, {
-					'Content-Type': 'image/jpeg',
-					'Connection': 'Keep-Alive',
-					'Expires': 'Tue, 03 Jul 2001 06:00:00 GMT',
-					'Last-Modified': moment().utc().format("ddd, DD MMM YYYY HH:mm:ss") + ' GMT',
-					'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0, false',
-					'Pragma': 'no-cache'
-				});
+				res.write(buffer);
+				offset += chunkSize;
 				
-				res.end(content);
-			});
-		} else {
-			serveFile(req, res, config.file.notfound, 404);
-		}
+				setTimeout(sendChunk, config.imageChunkInterval);
+			};
+			
+			sendChunk();
+		});
 	});
 }
 
