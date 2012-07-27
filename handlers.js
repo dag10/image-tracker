@@ -1,10 +1,17 @@
 var config = require('./config');
 var fs = require('fs');
 var path = require('path');
+var moment = require('moment');
 
 function serveTrackingImage(req, res) {
 	
 	var imagePath = config.webdir + config.file.flowerimg;
+	var referer = req.headers.referer;
+	
+	if (referer)
+		console.log("IMAGE VIEWED ON:", referer);
+	else
+		console.log("IMAGE VIEWED DIRECTLY");
 	
 	path.exists(imagePath, function(exists) {
 		if (exists) {
@@ -16,16 +23,18 @@ function serveTrackingImage(req, res) {
 				}
 				
 				res.writeHead(200, {
-					'Content-Type': 'image/jpeg'
+					'Content-Type': 'image/jpeg',
+					'Connection': 'Keep-Alive',
+					'Expires': 'Tue, 03 Jul 2001 06:00:00 GMT',
+					'Last-Modified': moment().utc().format("ddd, DD MMM YYYY HH:mm:ss") + ' GMT',
+					'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0, false',
+					'Pragma': 'no-cache'
 				});
 				
 				res.end(content);
-				
-				console.log("SERVED FLOWER IMAGE!");
 			});
 		} else {
-			res.writeHead(404);
-			res.end("image.jpg not found!");
+			serveFile(req, res, config.file.notfound, 404);
 		}
 	});
 }
