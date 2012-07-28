@@ -2,65 +2,98 @@ var config = require('./config');
 var fs = require('fs');
 var path = require('path');
 var moment = require('moment');
+var _ = require('underscore');
+var Backbone = require('backbone');
+
+var Client = Backbone.Model.extend({
+
+});
+
+var Clients = Backbone.Collection.extend({
+	model: Client
+});
+
+var clients = new Clients();
+
+function serveOnlineImage(req, res) {
+
+}
+
+function generateMultipartHeaders() {
+	return {
+		'Connection': 'Close',
+		'Expires': '-1',
+		'Last-Modified': moment().utc().format("ddd, DD MMM YYYY HH:mm:ss") + ' GMT',
+		'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0, false',
+		'Pragma': 'no-cache',
+		'Content-Type': 'multipart/x-mixed-replace; boundary=--' + config.multipartBoundary
+	};
+}
 
 function serveTrackingImage(req, res) {
 	var imagePath = config.webdir + config.file.flowerimg;
 	var referer = req.headers.referer;
 	
-	console.log("OPENED:", referer ? referer : "DIRECT IMAGE");
+	if (!referer) {
+		serveFile(req, res, config.file.directattempt, 403);
+		return;
+	}
+	
+	console.log("OPENED:", referer);
 	
 	var connected = true;
 	res.on('close', function() {
 		connected = false;
-		console.log("CLOSED:", referer ? referer : "DIRECT IMAGE");
+		console.log("CLOSED:", referer);
+		res.end();
 	});
-	
-	path.exists(imagePath, function(exists) {
-		if (!exists) {
-			serveFile(req, res, config.file.notfound, 404);
-			return;
-		}
 		
-		fs.open(imagePath, 'r', function(err, fd) {
+	res.writeHead(200, generateMultipartHeaders());
+	
+	var frame = 1;
+	var sendFrame = function() {
+		if (!connected) return;
+		
+		var framePath = config.webdir + config.file.imgframe.replace('%d', frame);
+		console.log("SENDING FRAME:", framePath);
+		
+		fs.open(framePath, 'r', function(err, fd) {
 			if (err) {
 				console.error(err);
-				res.writeHead(500);
 				res.end();
+				return;
 			}
-		
-			res.writeHead(200, {
-				'Content-Type': 'image/jpeg',
-				'Connection': 'Keep-Alive',
-				//'Expires': 'Tue, 03 Jul 2001 06:00:00 GMT',
-				'Expires': '-1',
-				'Last-Modified': moment().utc().format("ddd, DD MMM YYYY HH:mm:ss") + ' GMT',
-				'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0, false',
-				'Pragma': 'no-cache'
-			});
 			
-			var chunkSize = config.imageChunkSize;
-			var offset = 0;
+			var stat = fs.fstatSync(fd);
+			var size = stat.size;
 			
-			var sendChunk = function() {
-				if (!connected) return;
-				
-				var buffer = new Buffer(chunkSize);
-				var bytesRead = fs.readSync(fd, buffer, 0, chunkSize, offset);
-				
-				if (bytesRead <= 0) {
-					res.end();
-					return;
-				}
-				
-				res.write(buffer);
-				offset += chunkSize;
-				
-				setTimeout(sendChunk, config.imageChunkInterval);
-			};
+			res.write("--" + config.multipartBoundary);
+			res.write("\r\nContent-Type: image/jpeg");
+			res.write("\r\nContent-Length: " + size);
 			
-			sendChunk();
+			var frameBuffer = new Buffer(size);
+			var bytesRead = fs.readSync(fd, frameBuffer, 0, size, 0);
+			
+			fs.closeSync(fd);
+			
+			if (bytesRead != size) {
+				console.error("Size mismatch on frame " + frame);
+				res.end();
+				return;
+			}
+			
+			res.write("\r\n\r\n");
+			res.write(frameBuffer);			
+			res.write("\r\n\r\n");
+			
+			if (frame == 1) frame = 2;
+			else if (frame == 2) frame = 1;
+			
+			setTimeout(sendFrame, 1000);
 		});
-	});
+	};
+	
+	sendFrame();
 }
 
 function serveFile(req, res, url, status) {

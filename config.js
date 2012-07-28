@@ -6,9 +6,13 @@ module.exports = {
 	file: {
 		notfound:	"/404.html",
 		index:		"/index.html",
-		flowerimg:	"/flowers.jpg"
+		flowerimg:	"/flowers.jpg",
+		imgframe:	"/frame%d.jpg",
+		directattempt: "/forbiddirect.html"
 	},
 	
 	imageChunkSize: 1,
-	imageChunkInterval: 250
+	imageChunkInterval: 250,
+	
+	multipartBoundary: "whyhellothere"
 };
