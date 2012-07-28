@@ -15,9 +15,20 @@ var Client = Backbone.Model.extend({
 		console.log(this.cid, "CONNECTED FROM:", req.headers.referer);
 		
 		this.sendInitialHeaders();
+		
+		this.set('heartbeatinterval', setInterval(_.bind(this.sendHeartbeat, this), 5000));
 	},
 	
+	// Sends an empty part to keep the connection alive
+	sendHeartbeat: function() {
+		if (this.get('sending')) return;
+		this.get('res').write("\r\n--" + config.multipartBoundary + "\r\n");
+	},
+	
+	// Sends the actual HTTP headers
 	sendInitialHeaders: function() {
+		this.set('sending', true);
+		
 		var res = this.get('res');
 		res.writeHead(200, {
 			'Connection': 'Close',
@@ -28,9 +39,14 @@ var Client = Backbone.Model.extend({
 			'Content-Type': 'multipart/x-mixed-replace; boundary=--' + config.multipartBoundary
 		});
 		res.write("--" + config.multipartBoundary + "\r\n");
+		
+		this.set('sending', false);
 	},
 	
+	// Sends an image frame, followed by an empty part to flush the image through
 	sendFrame: function(image) {
+		this.set('sending', true);
+		
 		var res = this.get('res');
 		
 		res.write("Content-Type: image/png\r\n");
@@ -41,11 +57,15 @@ var Client = Backbone.Model.extend({
 		res.write("--" + config.multipartBoundary + "\r\n");
 		res.write("\r\n");
 		res.write("--" + config.multipartBoundary + "\r\n");
+		
+		this.set('sending', false);
 	},
 	
+	// Handle a disconnect
 	handleClose: function() {
 		console.log(this.cid, "DISCONNECTED FROM:", this.get('req').headers.referer);
 		this.collection.remove(this);
+		clearInterval(this.get('heartbeatinterval'));
 	}
 });
 
@@ -58,31 +78,31 @@ var Clients = Backbone.Collection.extend({
 	},
 	
 	countUpdated: function() {
-		var image = generateUserCountImage(this.size());
+		var image = this.generateUserCountImage(this.size());
 		
 		this.each(function(client) {
 			client.sendFrame(image);
 		});
+	},
+	
+	generateUserCountImage: function(count) {
+		var canvas = new Canvas(200, 100);
+		var ctx = canvas.getContext('2d');
+		
+		// Background
+		ctx.fillStyle = "rgba(100, 149, 237, 0)";
+		ctx.fillRect(0, 0, 200, 100);
+		
+		// Text
+		ctx.fillStyle = "rgb(0, 100, 0)";
+		ctx.font = "20px Impact";
+		ctx.fillText("Users online: " + count, 10, 55);
+		
+		return canvas.toBuffer();
 	}
 });
 
 var clients = new Clients();
-
-function generateUserCountImage(count) {
-	var canvas = new Canvas(200, 100);
-	var ctx = canvas.getContext('2d');
-	
-	// Background
-	ctx.fillStyle = "rgba(100, 149, 237, 0)";
-	ctx.fillRect(0, 0, 200, 100);
-	
-	// Text
-	ctx.fillStyle = "rgb(0, 100, 0)";
-	ctx.font = "20px Impact";
-	ctx.fillText("Users online: " + count, 10, 55);
-	
-	return canvas.toBuffer();
-}
 
 function handleRequest(req, res) {
 	if (!req.headers.referer) {
