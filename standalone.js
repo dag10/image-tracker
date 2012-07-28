@@ -1,3 +1,12 @@
+/* Real-Time PNG-Streaming HTTP User Counter
+   Copyright Drew Gottlieb, 2012
+
+   Free for any use, but don't claim
+   that this is your work.
+
+   Doesn't work on Windows because
+   node-canvas only works on Linux and OSX. */
+
 var moment = require('moment');
 var http = require('http');
 var _ = require('underscore');
