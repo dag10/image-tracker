@@ -90,6 +90,8 @@ var Clients = Backbone.Collection.extend({
 		this.each(function(client) {
 			client.sendFrame(image);
 		});
+	
+		console.log("Connections:", this.size());
 	},
 	
 	// Generate a new image
@@ -111,6 +113,29 @@ var Clients = Backbone.Collection.extend({
 });
 
 function handleRequest(req, res) {
+	switch (req.url) {
+		case '/':
+		case '/index.html':
+			showDemoPage(req, res);
+			break;
+		case '/online.png':
+			showImage(req, res);			
+			break;
+		default:
+			show404(req, res);
+			break;
+	}
+}
+
+function showDemoPage(req, res) {
+	res.writeHead(200, {'Content-Type': 'text/html'});
+	res.write("<h1>Users viewing this page:</h1>");
+	res.write("<img src=\"/online.png\" />");
+	res.write("<h5>(probably won't work on IE or Opera)</h5>");
+	res.end();
+}
+
+function showImage(req, res) {
 	// If this image is not embedded in a <img> tag, don't show it.
 	if (!req.headers.referer) {
 		res.writeHead(403, {'Content-Type': 'text/html'});
@@ -123,8 +148,11 @@ function handleRequest(req, res) {
 		req: req,
 		res: res
 	});
-	
-	console.log("Connections:", clients.size());
+}
+
+function show404(req, res) {
+	res.writeHead(404, {'Content-Type': 'text/html'});
+	res.end("<h1>not found</h1><br /><a href=\"/\">go home</a>");
 }
 
 // Ready, Set, Go!
