@@ -49,13 +49,13 @@ function serveTrackingImage(req, res) {
 	});
 		
 	res.writeHead(200, generateMultipartHeaders());
+	res.write("--" + config.multipartBoundary + "\r\n");
 	
 	var frame = 1;
 	var sendFrame = function() {
 		if (!connected) return;
 		
 		var framePath = config.webdir + config.file.imgframe.replace('%d', frame);
-		console.log("SENDING FRAME:", framePath);
 		
 		fs.open(framePath, 'r', function(err, fd) {
 			if (err) {
@@ -66,10 +66,6 @@ function serveTrackingImage(req, res) {
 			
 			var stat = fs.fstatSync(fd);
 			var size = stat.size;
-			
-			res.write("--" + config.multipartBoundary);
-			res.write("\r\nContent-Type: image/jpeg");
-			res.write("\r\nContent-Length: " + size);
 			
 			var frameBuffer = new Buffer(size);
 			var bytesRead = fs.readSync(fd, frameBuffer, 0, size, 0);
@@ -82,9 +78,14 @@ function serveTrackingImage(req, res) {
 				return;
 			}
 			
-			res.write("\r\n\r\n");
-			res.write(frameBuffer);			
-			res.write("\r\n\r\n");
+			res.write("Content-Type: image/jpeg\r\n");
+			res.write("Content-Length: " + size + "\r\n");
+			res.write("\r\n");
+			res.write(frameBuffer);
+			
+			res.write("--" + config.multipartBoundary + "\r\n");
+			res.write("\r\n");
+			res.write("--" + config.multipartBoundary + "\r\n");
 			
 			if (frame == 1) frame = 2;
 			else if (frame == 2) frame = 1;

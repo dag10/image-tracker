@@ -1,5 +1,5 @@
 module.exports = {
-	port:	9191,
+	port:	9192,
 	host:	"0.0.0.0",
 	webdir:	"./www",
 	
