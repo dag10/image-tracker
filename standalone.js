@@ -16,7 +16,7 @@ var Canvas = require('canvas');
 var config = {
 	port:	9192,
 	host:	"0.0.0.0",
-	heartbeatInterval: 5000, // 5 seconds
+	updateInterval: 3000, // 5 seconds
 	multipartBoundary: "whyhellothere"
 };
 
@@ -25,19 +25,19 @@ var Client = Backbone.Model.extend({
 		var req = this.get('req');
 		var res = this.get('res');
 		
-		res.on('close', _.bind(this.handleClose, this));
-		
 		console.log("Page opened:", req.headers.referer);
 		
+		res.on('close', _.bind(this.handleClose, this));
 		this.sendInitialHeaders();
-		
-		this.set('heartbeatinterval', setInterval(_.bind(this.sendHeartbeat, this), config.heartbeatInterval));
+		this.set('updateinterval', setInterval(_.bind(this.sendUpdate, this), config.updateInterval));
 	},
 	
-	// Sends an empty part to keep the connection alive
-	sendHeartbeat: function() {
+	// Re-send the image in case it needs to be re-rendered
+	sendUpdate: function() {
 		if (this.get('sending')) return;
-		this.get('res').write("\r\n--" + config.multipartBoundary + "\r\n");
+		if (!this.get('imagecache')) return;
+		
+		this.sendFrame(this.get('imagecache'));
 	},
 	
 	// Sends the actual HTTP headers
@@ -61,6 +61,7 @@ var Client = Backbone.Model.extend({
 	// Sends an image frame, followed by an empty part to flush the image through
 	sendFrame: function(image) {
 		this.set('sending', true);
+		this.set('imagecache', image);
 		
 		var res = this.get('res');
 		
@@ -80,7 +81,7 @@ var Client = Backbone.Model.extend({
 	handleClose: function() {
 		console.log("Page closed:", this.get('req').headers.referer);
 		this.collection.remove(this);
-		clearInterval(this.get('heartbeatinterval'));
+		clearInterval(this.get('updateinterval'));
 	}
 });
 
