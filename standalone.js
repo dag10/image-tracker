@@ -28,6 +28,7 @@ var Client = Backbone.Model.extend({
 		console.log("Page opened:", req.headers.referer);
 		
 		res.on('close', _.bind(this.handleClose, this));
+		req.on('close', _.bind(this.handleClose, this));
 		this.sendInitialHeaders();
 		this.set('updateinterval', setInterval(_.bind(this.sendUpdate, this), config.updateInterval));
 	},
@@ -79,6 +80,9 @@ var Client = Backbone.Model.extend({
 	
 	// Handle a disconnect
 	handleClose: function() {
+		if (this.get('closed')) return;
+		this.set('closed', true);
+		
 		console.log("Page closed:", this.get('req').headers.referer);
 		this.collection.remove(this);
 		clearInterval(this.get('updateinterval'));
